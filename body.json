@@ -1,0 +1,90 @@
+{
+    "name": "ApiProtection2",
+    "type": "GCAPI_API_PROTECTION",
+    "action": "ADD",
+    "inputs": {
+        "apiProtectionProperties": {
+            "dnsMode": "ipv4-only",
+            "dnsResolver": "/Common/dns-resolver-lab",
+            "authorization": [
+                "oauth2"
+            ],
+            "paths": [
+                {
+                    "uri": "/test-path",
+                    "method": "DELETE",
+                    "server": "server1",
+                    "description": "The request's DELETE parameters.",
+                    "active": true
+                }
+            ],
+            "servers": [
+                {
+                    "name": "server1",
+                    "url": "http://bin.org/",
+                    "description": "",
+                    "sslProfile": ""
+                },
+            ],
+            "responses": [
+                {
+                    "name": "test_auto_response1",
+                    "description": "",
+                    "statusCode": "403",
+                    "statusString": "Forbidden",
+                    "body": "",
+                    "headers": []
+                }
+            ]
+
+        },
+        "oauthProperties": {
+            "servers": [
+                {
+                    "name": "azuread",
+                    "provider": {
+                        "type": "azure-ad",
+                        "ignoreExpiredCert": false,
+                        "allowSelfSignedJwkCert": "yes",
+                        "trustedCaBundle": "/Common/ca-bundle.crt",
+                        "tenantId": "45746576764765764567465",
+                        "discoveryInterval": 60
+                    }
+                }
+            ]
+        },
+        "virtuals": {
+            "ip": "10.3.5.8",
+            "port": 443,
+            "skipHTTPRedirect": false,
+            "httpsRedirectFrom": 80,
+            "clientSslProfile": {
+                "key": "/Common/default.key",
+                "cert": "/Common/default.crt",
+                "parent": "clientssl"
+            },
+            "serverSslProfile": {
+                "key": "/Common/default.key",
+                "cert": "/Common/default.crt",
+                "parent": "serverssl"
+            },
+            "pool": {
+                "loadBalancingMode": "round-robin",
+                "members": [
+                    {
+                        "ip": "123.123.123.123",
+                        "port": 80,
+                        "connectionLimit": 0,
+                        "priorityGroup": 0
+                    }
+                ],
+                "monitors": {
+                    "names": [
+                        "gateway_icmp"
+                    ]
+                }
+            }
+        }
+     
+    }
+}
