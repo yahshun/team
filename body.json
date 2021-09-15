@@ -35,7 +35,7 @@
             ]
         },
              "virtuals": {
-            "ip": "10.3.5.7",
+            "ip": "VIP_ADDRESS",
             "port": 443,
             "skipHTTPRedirect": false,
             "httpsRedirectFrom": 80,
@@ -53,7 +53,7 @@
                 "loadBalancingMode": "round-robin",
                 "members": [
                     {
-                        "ip": "123.123.123.123",
+                        "ip": "SERVER_ADDRESS",
                         "port": 80,
                         "connectionLimit": 0,
                         "priorityGroup": 0
