@@ -1,5 +1,5 @@
 {
-    "name": "${NAME}",
+    "name": "NAME_VALUE",
     "type": "GCAPI_API_PROTECTION",
     "action": "ADD",
     "inputs": {
