@@ -1,14 +1,11 @@
 {
-    "name": "ApiProtection2",
+    "name": "ApiProtection",
     "type": "GCAPI_API_PROTECTION",
     "action": "ADD",
     "inputs": {
         "apiProtectionProperties": {
             "dnsMode": "ipv4-only",
             "dnsResolver": "/Common/dns-resolver-lab",
-            "authorization": [
-                "oauth2"
-            ],
             "paths": [
                 {
                     "uri": "/test-path",
@@ -24,7 +21,7 @@
                     "url": "http://bin.org/",
                     "description": "",
                     "sslProfile": ""
-                },
+                }
             ],
             "responses": [
                 {
@@ -38,23 +35,8 @@
             ]
 
         },
-        "oauthProperties": {
-            "servers": [
-                {
-                    "name": "azuread",
-                    "provider": {
-                        "type": "azure-ad",
-                        "ignoreExpiredCert": false,
-                        "allowSelfSignedJwkCert": "yes",
-                        "trustedCaBundle": "/Common/ca-bundle.crt",
-                        "tenantId": "45746576764765764567465",
-                        "discoveryInterval": 60
-                    }
-                }
-            ]
-        },
-        "virtuals": {
-            "ip": "10.3.5.8",
+             "virtuals": {
+            "ip": "10.3.5.7",
             "port": 443,
             "skipHTTPRedirect": false,
             "httpsRedirectFrom": 80,
@@ -85,6 +67,6 @@
                 }
             }
         }
-     
     }
+
 }
