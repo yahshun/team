@@ -1,0 +1,312 @@
+ltm rule /Common/smtp_protocol_security {
+when RULE_INIT priority 0 {
+    # TO DO: Implement debug logging
+    set static::smtp_debug_mode 0 ;# 0: disabled | 1: enabled
+
+
+    # Allowed Receiving Domain
+    # Specify the domain names allowed to receive emails, and the action the system takes if it detects an illegal domain name.
+
+    set static::ard_names {dplab.local}
+    set static::ard_action 3 ;# 0: disabled | 1: alarm | 2: block | 3: alarm + block
+
+    # Directory Harvesting Attack
+    # Specify how many times during a specified time period a sender or user domain may attempt to send an email to an invalid address, 
+    # and the subsequent action the system takes if these limits are exceeded.
+
+    set static::dha_attempts 20
+    set static::dha_minutes_timeout 10
+    set static::dha_action 0 ;# 0: disabled | 1: alarm | 2: block | 3: alarm + block
+
+
+    # Disallowed Mail From Address
+    # Specifies which sender email addresses the system considers illegal, and the action the system takes if it detects an illegal email address.
+
+    set static::dmfa_addresses {}
+    set static::dmfa_action 0 ;# 0: disabled | 1: alarm | 2: block | 3: alarm + block
+
+
+    # Disallowed Senders Domain/IP Address
+    # Specifies which domain names and sender IP addresses the system considers illegal, 
+    # and the action the system takes if it detects an email sent from an illegal domain name or IP address.
+
+    set static::dsd_names {}
+    set static::dsd_action 0 ;# 0: disabled | 1: alarm | 2: block | 3: alarm + block
+
+
+    # DNS SPF Record
+    # Specifies the action the system takes if the system verifies (by checking the SPF record) that the sender is not using a valid address. 
+    # This setting is relevant only if the sender's domain uses the Sender Policy Framework (SPF) extension.
+
+    set static::spf_action 0 ;# 0: disabled | 1: alarm | 2: block | 3: alarm + block
+
+
+    # Non Existent Sender's Email Domain
+    # Specifies the action the system takes for email sent by a user whose domain name the system cannot resolve with a DNS (Domain Name System) query.
+
+    set static::nes_action 0 ;# 0: disabled | 1: alarm | 2: block | 3: alarm + block
+
+
+    # Rate Limit per Receiver Domain
+    # Specifies how many messages a host may receive in a given time period, 
+    # and the action the system takes whenever more than the allowed number of messages are sent to a particular host.
+
+    set static::rrd_rate_limit 200
+    set static::rrd_action 0 ;# 0: disabled | 1: alarm | 2: block | 3: alarm + block
+
+
+    # Rate Limit per Sender Domain
+    # Specifies how many messages, for each domain, the host may send in a given time period, 
+    # and specifies the action the system takes if more than the allowed number of messages are sent.
+
+    set static::rsd_rate_limit 100
+    set static::rsd_action 0 ;# 0: disabled | 1: alarm | 2: block | 3: alarm + block
+
+
+    # Sender DNS Validation
+    # Specifies the action the system takes for email sent from IP addresses that the system cannot resolve with a DNS (Domain Name System) query.
+
+    set static::sdv_action 0 ;# 0: disabled | 1: alarm | 2: block | 3: alarm + block
+
+
+    # SMTP Commands
+    # Specifies the SMTP commands that the system permits or prohibits, and specifies the action the system takes when a user runs a prohibited command.
+
+    set static::commands_permit {ATRN AUTH BDAT DATA EHLO ETRN HELO MAIL NOOP QUIT RCPT RSET STARTTLS}
+    set static::commands_prohibit {EXPN HELP SAML SEND SOML TURN VRFY}
+    set static::commands_action 3 ;# 0: disabled | 1: alarm | 2: block | 3: alarm + block
+    
+    
+    # STARTTLS Activation Mode
+    # Specifies whether the system requires, allows, or disallows STARTTLS activation for Simple Mail Transfer Protocol Security (SMTPS) traffic. 
+
+    set static::stls_mode 1 ;# 0: none | 1: allow | 2: required
+    
+    # Trace Transaction
+    # Specifies whether the system maitains a record of the entire traction throughout the lifetime of the connection. 
+    # A trace consits of client commands and the SMTP server's response code. If more information such as buffer data is required, enable debug logging.
+    
+    set static::transaction_trace 1 ;# 0: disabled | 1: enabled
+
+}
+
+
+proc allowed_receiving_domain { domain } {
+    if { [llength $static::ard_names] && $static::ard_action ne 0 } {
+        # Validate domain name
+        set allowed [expr { [lsearch -exact $static::ard_names $domain] + 1 }]
+    } else {
+        # Bypass validation since action has been disabled or there are no domain names configured
+        set allowed 1
+    }
+
+    if { ! $allowed } {
+        switch -- $static::ard_action {
+            1 { # Log event data to the ASM faciility and allow processing to continue
+                call smtp_primitive_procedures::secev "info" false "Allowed receiving domain" $domain 
+            }
+            2 { # Prohibit further processing and inform client
+                call smtp_primitive_procedures::respond 550 "invalid receiver domain" 
+            }
+            3 { # Log event data to the ASM faciility, prohibit further processing, and inform client
+                call smtp_primitive_procedures::secev "info" true "Allowed receiving domain" $domain
+                call smtp_primitive_procedures::respond 550 "invalid receiver domain"
+            }
+        }
+    }
+}
+
+proc client_data { payload } {
+    if { [catch {
+        scan [string toupper $payload] {%s%*s} command
+        
+        # Evaluate if a data collection is in progress
+        if { [table lookup collecting] == "" } {
+            call smtp_primitive_procedures::transaction command $command
+        }
+        
+        
+        # Evaluate STARTTLS Activation Mode
+        if { $static::stls_mode == 2 && [table lookup stls_activation] ne "ready" } {
+            # STARTTLS is required
+            if { [lsearch -exact {EHLO NOOP STARTTLS QUIT} $command] == -1 } {
+                call smtp_primitive_procedures::respond 530 ""
+            }
+        }
+        
+        # TO DO: Evaluate Command Sequence
+        # ATRN AUTH BDAT DATA EHLO ETRN HELO HELP MAIL NOOP QUIT RCPT RSET SAML SEND SOML STARTTLS TURN VRFY
+        switch -- $command {
+            HELO -
+            EHLO {
+                # TO DO: Evaluate syntax
+                # TO DO: Evaluate 
+                
+            }
+            
+            STARTTLS {
+                # TO DO: Evaluate syntax
+                
+                # Evaluate STARTTLS Activation Mode
+                if { $static::stls_mode == 0 } {
+                    # STARTTLS is not permitted
+                    call smtp_primitive_procedures::respond 502 ""
+                }
+                
+            }
+            
+            MAIL {
+                # Evaluate Syntax
+                if { [scan [string toupper $payload] {MAIL FROM:%s %s} sender args] < 1 } {
+                    # Invalid syntax for MAIL command
+                    call smtp_primitive_procedures::respond 501 ""
+                }
+                
+                # Evaluate Order Of Operations
+                set transaction [table lookup transaction]
+                if { $transaction contains "| MAIL (354) |" && ! [expr {$transaction contains "| BDAT (250) |" || $transaction contains "| . (250) |"}] } {
+                    # A MAIL transaction is already in progress
+                    call smtp_primitive_procedures::respond 503 ""
+                }
+                
+                # TO DO: Evaluate Disallowed Mail From Address
+                
+                # TO DO: Evaluate Disallowed Senders Domain/IP Address
+                
+                # TO DO: Evaluate DNS SPF Record
+                
+                # TO DO: Evaluate Non Existent Sender's Email Domain
+                
+                # TO DO: Evaluate Rate Limit per Sender Domain
+                
+                # TO DO: Evaluate Sender DNS Validation
+            }
+            
+            RCPT {
+                # TO DO: Evaluate Syntax
+                if { [scan [string toupper $payload] {RCPT TO:%s %s} sender args] < 1 || ! [expr {$sender contains "@"}] } {
+                    # Invalid syntax for RCPT command
+                    call smtp_primitive_procedures::respond 501 ""
+                }
+                
+                # TO DO: Evaluate Order Of Operations
+
+                
+                # Evaluate Allowed Receiving Domain
+                set address [string map {< "" > ""} [getfield [getfield $payload " " 2] ":" 2]]
+                set domain [string trim [getfield $address "@" 2]]
+                call smtp_protocol_security::allowed_receiving_domain $domain
+                
+                # TO DO: Evaluate Rate Limit per Receiver Domain
+                
+            }
+            
+            BDAT -
+            DATA {
+                table set collecting 1
+            }
+            
+            RSET {
+                # Validate syntax
+                 
+                 if {[string toupper $payload] ne "RSET"} {
+                    # Invalid syntax for RSET command
+                    call smtp_primitive_procedures::respond 501 ""
+                 }
+                
+                # Clear sequence table
+                table delete transaction
+            }
+            
+            default {
+                # TO DO: Evaluate Syntax
+                
+                # Evaluate SMTP Command
+                if { [table lookup collecting] == "" } {
+                    call smtp_protocol_security::smtp_commands $command
+                }
+                
+            }
+        }
+        
+    } err]} { 
+        if { [string tolower $payload] ne "quit" } {
+            log local0.err "Error occured while prcessing client data: $err"
+            call smtp_primitive_procedures::respond 451 ""
+        }
+    }
+}
+
+proc directory_harvesting_attack {} { }
+
+proc disallowed_mail_from_address { address } { }
+
+proc disallowed_senders_domain_ip { sender } { }
+
+proc dns_spf_record { spf } { }
+
+proc non_existent_sender_email_domain { domain } { }
+
+proc rate_limit_per_receiver_domain { domain } { }
+
+proc rate_limit_per_sender_domain { domain } { }
+
+proc sender_dns_validation { sender } { }
+
+proc server_data { payload } {
+    call smtp_primitive_procedures::transaction response [string range $payload 0 2]
+    
+    if { [catch {
+        if { [string tolower $payload] contains "250-starttls" && $static::stls_mode == 0} {
+            # Remove STARTTLS from the options list
+            set modified_payload "[string map {250-STARTTLS\r\n ""} $payload]\r\n"
+            
+            if { [table lookup stls_activation] == "ready" } {
+                SSL::payload replace 0 [SSL::payload length] $modified_payload
+            } else {
+                TCP::payload replace 0 [TCP::payload length] $modified_payload
+            }
+        }
+    
+        if { [string tolower $payload] contains "ready to start tls" } {
+            table set stls_activation "ready"
+        }
+        
+        if {$payload starts_with "250" && [table lookup collecting] ne ""} {
+            table delete collecting
+        }
+        
+    } err]} { 
+        log local0.err "Error occured while prcessing server data: $err"
+    }
+}
+
+proc smtp_commands { command } {
+    set permitted [expr { [lsearch -exact $static::commands_permit $command] ne -1 }]
+    set prohibited [expr { [lsearch -exact $static::commands_prohibit $command] ne -1 }]
+    
+    # Validate SMTP command
+    if { $permitted || $static::commands_action == 0} {
+        set prohibited 0
+    } elseif { ! $prohibited } {
+        # Unknown commands should be prohibited
+        set prohibited 1
+    }
+    
+    if { $prohibited } {
+        switch -- $static::commands_action {
+            1 { # Log event data to the ASM faciility and allow processing to continue
+                call smtp_primitive_procedures::secev "info" false "SMTP methods" $command 
+            }
+            2 { # Prohibit further processing and inform client
+                call smtp_primitive_procedures::respond 502 "" 
+            }
+            3 { # Log event data to the ASM faciility, prohibit further processing, and inform client
+                call smtp_primitive_procedures::secev "info" true "SMTP methods" $command
+                call smtp_primitive_procedures::respond 502 ""
+            }
+        }
+    }
+}
+definition-checksum 2a4d3ba53ac5b8d235859ce185899a6c
+}

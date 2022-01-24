@@ -1,0 +1,93 @@
+ltm rule /Common/smtp_traffic_controller {
+when CLIENT_ACCEPTED priority 0 {
+    # Disable SSL for client and signal to begin listening for STARTTLS
+    SSL::disable
+    table set stls_activation "listening"
+    call smtp_primitive_procedures::transaction command "CONNECTED"
+    
+}
+
+when SERVER_CONNECTED priority 0 {
+    # Disable SSL for server and begin collection of decrypted payload once the connection has been completed successfully
+    SSL::disable
+    clientside {TCP::collect}
+    TCP::collect
+}
+
+when CLIENTSSL_HANDSHAKE priority 0 {
+    # Begin collection of the decrypted payload once the SSL handshake has been completed successfully
+    SSL::collect
+}
+
+when SERVERSSL_HANDSHAKE priority 0 {
+    # Begin collection of the decrypted payload once the SSL handshake has been completed successfully
+    SSL::collect
+}
+
+when CLIENT_DATA priority 0 {
+    # Process the client data
+    call smtp_protocol_security::client_data [string trim [TCP::payload]]
+    
+    # Release the payload
+    TCP::release
+
+    if { [table lookup stls_activation] == "listening" } {
+        TCP::collect
+    }
+}
+
+when SERVER_DATA priority 0 {
+    # Process the server data
+    call smtp_protocol_security::server_data [string trim [TCP::payload]]
+
+    # Release the payload
+    TCP::release
+
+    switch -- [table lookup stls_activation] {
+        "listening" {
+            TCP::collect
+        }
+        "ready" {
+            # Enable SSL for the server and signal client
+            TCP::notify response
+            SSL::enable
+        }
+    }
+}
+
+when CLIENTSSL_DATA priority 0 {
+    # Process the client data
+    call smtp_protocol_security::client_data [string trim [SSL::payload]]
+    
+    # Release the payload
+    SSL::release
+    SSL::collect
+}
+
+when SERVERSSL_DATA priority 0 {
+    # Process the server data
+    call smtp_protocol_security::server_data [string trim [SSL::payload]]
+    
+    # Release the payload
+    SSL::release
+    SSL::collect
+}
+
+when USER_RESPONSE priority 0 {
+    # Enable SSL for the client
+    TCP::release
+    SSL::enable
+}
+
+when CLIENT_CLOSED {
+    if {$static::transaction_trace} {
+        call smtp_primitive_procedures::secev "info" false "Transaction trace" [table lookup transaction_trace]
+    }
+    
+    table delete collecting
+    table delete transaction
+    table delete transaction_trace
+    table delete -subtable transaction -all
+}
+definition-checksum 920fdd33ab33d92e9a76b55ffa763358
+}
